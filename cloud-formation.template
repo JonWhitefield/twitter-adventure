@@ -1,0 +1,94 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "IAC implementation of Twitter adventure backend",
+    "Resources": {
+        "taTwitterPostLambdaRole": {
+            "Type" : "AWS::IAM::Role",
+            "Properties" : {
+                "AssumeRolePolicyDocument": {
+                    "Version" : "2012-10-17",
+                    "Statement": [ {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": [ "lambda.amazonaws.com" ]
+                        },
+                        "Action": [ "sts:AssumeRole" ]
+                    } ]
+                },
+                "Path": "/",
+                "Description" : "Permissions for twitter post lambda function",
+                "RoleName" : "ta-twitter-lambda-post-lambda-role"
+            }
+        },
+        "taStepFunctionRole": {
+            "Type" : "AWS::IAM::Role",
+            "Properties" : {
+                "AssumeRolePolicyDocument": {
+                    "Version" : "2012-10-17",
+                    "Statement": [ {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": [ "states.us-east-1.amazonaws.com" ]
+                        },
+                        "Action": [ "sts:AssumeRole" ]
+                    } ]
+                },
+                "Policies":[
+                    {
+                        "PolicyName":"taStepFunctionLambdaInvoke",
+                        "PolicyDocument":{
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Sid": "LambdaInvoke",
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "lambda:InvokeFunction"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "Path": "/",
+                "Description" : "Permissions for step functions",
+                "RoleName" : "ta-step-function-role"
+            }
+        },
+        "taTwitterPostLambda": {
+            "Type" : "AWS::Lambda::Function",
+            "Properties" : {
+                "Description" : "Lambda function to post twitter updates",
+                "FunctionName" : "ta-twitter-post-lambda",
+                "Handler": "index.lambda_handler",
+                "MemorySize" : 128,
+                "Role" : {"Fn::GetAtt": ["taTwitterPostLambdaRole", "Arn"]},
+                "Runtime" : "python3.9",
+                "Timeout" : 5,
+                "Code": {
+                    "S3Bucket": "ta-lambda-functions",
+                    "S3Key": "twitter-post.zip"
+                }
+              }
+        },
+        "taExecutionStepFunction": {
+            "Type" : "AWS::StepFunctions::StateMachine",
+            "Properties" : {
+                "Definition" : {
+                    "StartAt": "FirstState",
+                    "States": {
+                        "FirstState": {
+                            "Type": "Task",
+                            "Resource": {"Fn::GetAtt":["taTwitterPostLambda", "Arn"]},
+                            "End": true
+                        }
+                    }
+                },
+                "RoleArn" : { "Fn::GetAtt": ["taStepFunctionRole", "Arn"]},
+                "StateMachineName" : "ta-step-functions",
+                "StateMachineType" : "STANDARD"
+              }
+          }
+    }
+}
